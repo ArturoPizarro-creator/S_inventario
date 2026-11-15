@@ -1,0 +1,14 @@
+# Claves y copias de seguridad: NUNCA deben subirse a GitHub
+.env
+.env.*
+!.env.example
+*.respaldo
+*.sql
+env-respaldo*
+
+node_modules
+.next
+__pycache__
+*.pyc
+.pytest_cache
+*.db

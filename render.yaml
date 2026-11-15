@@ -1,0 +1,31 @@
+# Plano para publicar la API en Render (opcional; también puedes crear el servicio a mano, ver DEPLOY.md).
+# La base de datos NO va aquí: usa Neon (la base gratuita de Render se borra a los 30 días).
+services:
+  - type: web
+    name: fargoz-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash
+      - key: GEMINI_FALLBACK_MODEL
+        value: gemini-3.1-flash-lite
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL        # la cadena de conexión de Neon
+        sync: false
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
