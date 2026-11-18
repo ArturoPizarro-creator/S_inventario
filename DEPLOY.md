@@ -83,6 +83,8 @@ salidas → Cargar historial), o pasa tu base local con `pg_dump`/`psql` si pref
 - [ ] Panel, Productos, Reposición y Movimientos cargan.
 - [ ] «Analizar con IA» responde (la primera vez puede tardar si la API estaba dormida).
 - [ ] La contraseña de administrador **no** es la de pruebas.
+- [ ] `https://TU-WEB.vercel.app/robots.txt` responde `Disallow: /` (los buscadores no indexan el sistema).
+- [ ] En tu repositorio de GitHub, activa **Dependabot alerts** (Settings → Code security) para recibir avisos de vulnerabilidades.
 
 ## Problemas frecuentes
 

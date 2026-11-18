@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Movement, Product
+from ..services.uploads import load_table
 from ..services.normalize import clean_sku, is_blank
 from ..schemas import ProductIn, ProductOut
 
@@ -75,12 +76,7 @@ def import_products(file: UploadFile = File(...), db: Session = Depends(get_db))
 
     Columnas: sku, nombre (obligatorias), categoria, stock, stock_minimo.
     """
-    raw = file.file.read()
-    name = (file.filename or "").lower()
-    try:
-        df = pd.read_csv(io.BytesIO(raw)) if name.endswith(".csv") else pd.read_excel(io.BytesIO(raw))
-    except Exception:
-        raise HTTPException(400, "No se pudo leer el archivo. Usa un .xlsx o .csv.")
+    df = load_table(file)
     df.columns = [str(c).strip().lower() for c in df.columns]
     missing = {"sku", "nombre"} - set(df.columns)
     if missing:

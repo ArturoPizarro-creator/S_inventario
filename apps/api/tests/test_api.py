@@ -380,18 +380,106 @@ def test_analysis_goes_stale_when_data_changes(client, monkeypatch):
 
 
 def test_database_url_from_neon_or_render_is_normalized():
-    import importlib
+    from app.config import normalize_db_url
 
-    import app.config as cfg
+    assert normalize_db_url("postgresql://u:p@host/db?sslmode=require") == "postgresql+psycopg://u:p@host/db?sslmode=require"
+    assert normalize_db_url("postgres://u:p@host/db") == "postgresql+psycopg://u:p@host/db"
+    assert normalize_db_url("postgresql+psycopg://u:p@host/db").startswith("postgresql+psycopg://")  # no se duplica
+    assert normalize_db_url("sqlite://") == "sqlite://"
 
-    old = os.environ.get("DATABASE_URL")
-    try:
-        os.environ["DATABASE_URL"] = "postgresql://u:p@host/db?sslmode=require"
-        importlib.reload(cfg)
-        assert cfg.settings.database_url.startswith("postgresql+psycopg://u:p@host/db")
-        os.environ["DATABASE_URL"] = "postgres://u:p@host/db"
-        importlib.reload(cfg)
-        assert cfg.settings.database_url.startswith("postgresql+psycopg://")
-    finally:
-        os.environ["DATABASE_URL"] = old or "sqlite://"
-        importlib.reload(cfg)
+
+# ------------------------- seguridad -------------------------
+def _csv(filas):
+    return ("sku,nombre\n" + "\n".join(f"S{i},P{i}" for i in range(filas))).encode()
+
+
+def test_upload_too_big_is_rejected(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "max_upload_mb", 1)
+    grande = b"sku,nombre\n" + b"A,B\n" * 400_000  # ~1.6 MB
+    r = client.post("/products/import", files={"file": ("grande.csv", grande)})
+    assert r.status_code == 413 and "máximo" in r.json()["detail"]
+
+
+def test_upload_wrong_type_and_empty(client):
+    assert client.post("/products/import", files={"file": ("virus.exe", b"MZ")}).status_code == 400
+    assert client.post("/products/import", files={"file": ("vacio.csv", b"")}).status_code == 400
+    assert client.post("/movements/import", files={"file": ("falso.xlsx", b"no soy un excel")}).status_code == 400
+
+
+def test_upload_too_many_rows(client, monkeypatch):
+    from app.services import uploads
+
+    monkeypatch.setattr(uploads, "MAX_ROWS", 5)
+    r = client.post("/products/import", files={"file": ("filas.csv", _csv(10))})
+    assert r.status_code == 413 and "filas" in r.json()["detail"]
+    assert client.post("/products/import", files={"file": ("ok.csv", _csv(3))}).status_code == 200
+
+
+def test_zip_bomb_is_rejected(client, monkeypatch):
+    """Un .xlsx es un zip: uno pequeño que se descomprime enorme no debe llegar a procesarse."""
+    import io
+    import zipfile
+
+    from app.services import uploads
+
+    monkeypatch.setattr(uploads, "MAX_UNZIPPED_MB", 1)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("relleno.bin", bytes(3 * 1024 * 1024))
+    assert len(buf.getvalue()) < 50_000  # pesa poco comprimido
+    r = client.post("/products/import", files={"file": ("bomba.xlsx", buf.getvalue())})
+    assert r.status_code == 413 and "descomprim" in r.json()["detail"]
+
+
+def test_500_hides_details_in_production(monkeypatch):
+    import app.main as main
+
+    @main.app.get("/_boom")
+    def boom():
+        raise RuntimeError("secreto interno: clave=abc123")
+
+    c = TestClient(main.app, raise_server_exceptions=False)
+    monkeypatch.setattr(main, "_prod", False)
+    assert "secreto interno" in c.get("/_boom").json()["detail"]  # en desarrollo se ve el motivo
+    monkeypatch.setattr(main, "_prod", True)
+    r = c.get("/_boom")
+    assert r.status_code == 500 and "secreto" not in r.text and "Código" in r.json()["detail"]
+
+
+def test_login_lockout_is_per_ip_and_user():
+    """Quien falla desde una dirección no bloquea a otra; pero hay un tope global por usuario."""
+    c = TestClient(app)
+    mal = lambda u, ip: c.post("/auth/login", json={"username": u, "password": "x"}, headers={"X-Forwarded-For": ip}).status_code
+    assert [mal("pablo", "1.1.1.1") for _ in range(6)] == [401] * 5 + [429]
+    assert mal("pablo", "2.2.2.2") == 401  # otra dirección: no está bloqueada
+    codigos = [mal("marta", f"9.9.9.{i}") for i in range(21)]
+    assert codigos[:20] == [401] * 20 and codigos[20] == 429  # tope global por usuario
+    assert c.post("/auth/login", json={"username": "admin", "password": "secreto"}, headers={"X-Forwarded-For": "3.3.3.3"}).status_code == 200
+
+
+def test_ai_endpoints_are_rate_limited(client, monkeypatch):
+    from app.config import settings
+    from app.services import analysis, assistant, ratelimit
+
+    monkeypatch.setattr(settings, "gemini_api_key", "x")
+    monkeypatch.setattr(settings, "ai_analysis_per_10min", 2)
+    monkeypatch.setattr(settings, "ai_chat_per_10min", 2)
+    monkeypatch.setattr(analysis, "analyze", lambda db, force=False: {"resumen": "ok"})
+    monkeypatch.setattr(assistant, "chat", lambda db, m, h: "ok")
+    ratelimit._hits.clear()
+    assert [client.post("/dashboard/analysis").status_code for _ in range(3)] == [200, 200, 429]
+    body = {"message": "hola", "history": []}
+    assert [client.post("/assistant/chat", json=body).status_code for _ in range(3)] == [200, 200, 429]
+    ratelimit._hits.clear()
+
+
+def test_requirements_list_what_xgboost_needs():
+    """XGBRegressor necesita scikit-learn y xgboost no lo instala solo: si falta, todas las predicciones fallan."""
+    from pathlib import Path
+
+    reqs = (Path(__file__).resolve().parent.parent / "requirements.txt").read_text().lower()
+    for paquete in ("xgboost", "scikit-learn", "pandas", "numpy", "openpyxl", "pyjwt", "python-multipart", "psycopg"):
+        assert paquete in reqs, f"Falta {paquete} en requirements.txt"
+    assert ">=" not in reqs, "Las versiones deben estar fijadas con == para que la instalación sea reproducible"

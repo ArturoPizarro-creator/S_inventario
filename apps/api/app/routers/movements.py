@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Movement, Product
 from ..schemas import MovementIn
+from ..services.uploads import load_table
 from ..services.normalize import clean_sku, is_blank
 
 router = APIRouter(prefix="/movements", tags=["movimientos"])
@@ -62,12 +63,7 @@ def import_movements(
     Columnas: sku, fecha, tipo (entrada o salida), cantidad.
     Por defecto NO cambia el stock actual: sirve para dar historial al modelo de predicción.
     """
-    raw = file.file.read()
-    name = (file.filename or "").lower()
-    try:
-        df = pd.read_csv(io.BytesIO(raw)) if name.endswith(".csv") else pd.read_excel(io.BytesIO(raw))
-    except Exception:
-        raise HTTPException(400, "No se pudo leer el archivo. Usa un .xlsx o .csv.")
+    df = load_table(file)
     df.columns = [str(c).strip().lower() for c in df.columns]
     missing = {"sku", "fecha", "tipo", "cantidad"} - set(df.columns)
     if missing:

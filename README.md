@@ -98,3 +98,24 @@ Si aun así falla, muestra un mensaje claro: espera uno o dos minutos y vuelve a
 ## Publicar en internet
 
 Mira `DEPLOY.md` (Vercel para la web, Render para la API y Neon para la base de datos), con sus advertencias y límites.
+
+## Seguridad
+
+**Ya implementado**
+- Sesión con cookie `httpOnly`, `SameSite=Lax` y opción `Secure`; toda la API exige sesión salvo el login y `/health`.
+- Bloqueo de intentos fallidos por usuario y dirección (5 cada 5 min) y tope por usuario (20 cada 15 min); los intentos
+  quedan en el registro (`docker compose logs api`).
+- Cabeceras de seguridad en la web (CSP, anti-incrustación, HSTS, `nosniff`, Referrer-Policy, Permissions-Policy) y
+  `noindex` para que los buscadores no la indexen.
+- Importaciones de Excel/CSV con límite de tamaño, de filas y protección contra «bombas zip».
+- En producción, los errores 500 no muestran detalles internos (solo un código para buscarlo en el registro) y se
+  ocultan `/docs`.
+- Límite de consultas a la IA (30 de chat y 12 de análisis cada 10 min).
+- Contenedores sin privilegios de administrador; versiones de Python y Node fijadas; Dependabot semanal.
+- El asistente solo puede **leer** datos: sus herramientas no modifican nada.
+
+**Cómo auditar las dependencias:** `make audit` (npm audit + pip-audit).
+
+**Pendiente (si la empresa lo usa de verdad):** varios usuarios con roles y contraseñas cifradas, registro de quién hizo
+cada cambio, segundo factor (2FA), respaldos automáticos y cambio de contraseña desde la app.
+Ningún sistema es 100 % seguro; esto no reemplaza una auditoría profesional.

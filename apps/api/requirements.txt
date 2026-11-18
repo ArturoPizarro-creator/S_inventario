@@ -1,14 +1,16 @@
-fastapi>=0.110
-uvicorn[standard]>=0.29
-sqlalchemy>=2.0
-psycopg[binary]>=3.1
-pydantic>=2.6
-pydantic-settings>=2.2
-pandas>=2.1
-numpy>=1.26
-xgboost>=2.0
-anthropic>=0.40
-google-genai>=1.0
-openpyxl>=3.1
-python-multipart>=0.0.9
-PyJWT>=2.8
+# Versiones fijas (probadas juntas). Dependabot propone actualizaciones; pruébalas antes de aceptarlas.
+fastapi==0.162.3
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.8
+psycopg[binary]==3.3.8
+pydantic==2.14.3
+pydantic-settings==2.16.2
+pandas==3.0.6
+numpy==2.5.4
+xgboost==3.4.1
+scikit-learn==1.9.1  # XGBRegressor lo necesita: sin esta línea toda predicción falla con ImportError
+anthropic==2.9.0
+google-genai==3.1.0
+openpyxl==3.1.5
+python-multipart==0.0.33
+PyJWT==2.10.1

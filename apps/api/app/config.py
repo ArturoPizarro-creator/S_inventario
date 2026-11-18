@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5-5"
     cors_origins: str = "http://localhost:3000"
+    max_upload_mb: int = 10  # tamaño máximo de un Excel/CSV importado
+    ai_chat_per_10min: int = 30  # consultas al asistente permitidas cada 10 minutos
+    ai_analysis_per_10min: int = 12  # análisis del panel permitidos cada 10 minutos
     environment: str = "development"  # en «production» se ocultan /docs y /openapi.json
 
     # Inicio de sesión (un usuario administrador definido en .env)
@@ -31,10 +34,15 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # ponlo en true cuando sirvas la web por HTTPS
 
 
+def normalize_db_url(url: str) -> str:
+    """Neon, Render y otros entregan «postgresql://…»; SQLAlchemy necesita indicar el driver instalado."""
+    for old in ("postgres://", "postgresql://"):
+        if url.startswith(old):
+            return "postgresql+psycopg://" + url[len(old):]
+    return url
+
+
 settings = Settings()
-# Neon, Render y otros entregan «postgresql://…»; SQLAlchemy necesita indicar el driver instalado.
-for _old in ("postgres://", "postgresql://"):
-    if settings.database_url.startswith(_old):
-        settings.database_url = "postgresql+psycopg://" + settings.database_url[len(_old):]
+settings.database_url = normalize_db_url(settings.database_url)
 if not settings.jwt_secret:
     settings.jwt_secret = secrets.token_hex(32)

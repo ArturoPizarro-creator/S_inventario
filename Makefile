@@ -15,3 +15,7 @@ test:
 
 reset-db:
 	docker compose down -v
+
+audit:
+	cd apps/web && npm audit --omit=dev
+	pip install pip-audit && cd apps/api && pip-audit -r requirements.txt

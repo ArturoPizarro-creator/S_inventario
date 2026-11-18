@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 import logging
+import uuid
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -38,9 +39,14 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def unhandled(request: Request, exc: Exception):
-    """Registra el error completo y devuelve el motivo, en vez de un 500 mudo."""
-    logging.getLogger("fargoz").exception("Error no controlado en %s", request.url.path)
-    return JSONResponse({"detail": f"Error interno ({type(exc).__name__}): {str(exc)[:200]}"}, status_code=500)
+    """Registra el error completo. En producción no se muestran detalles internos, solo un código para buscarlo."""
+    ref = uuid.uuid4().hex[:8]
+    logging.getLogger("fargoz").exception("Error no controlado [%s] en %s", ref, request.url.path)
+    if _prod:
+        detail = f"Error interno. Código {ref}: pide revisar los registros del servidor."
+    else:
+        detail = f"Error interno ({type(exc).__name__}): {str(exc)[:200]}"
+    return JSONResponse({"detail": detail}, status_code=500)
 
 
 app.include_router(auth_router)

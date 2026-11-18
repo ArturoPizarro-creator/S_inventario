@@ -1,0 +1,15 @@
+# GitHub revisa cada semana si hay versiones nuevas o parches de seguridad y abre una propuesta (pull request).
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/apps/api"
+    schedule: { interval: "weekly" }
+  - package-ecosystem: "npm"
+    directory: "/apps/web"
+    schedule: { interval: "weekly" }
+  - package-ecosystem: "docker"
+    directory: "/apps/api"
+    schedule: { interval: "monthly" }
+  - package-ecosystem: "docker"
+    directory: "/apps/web"
+    schedule: { interval: "monthly" }

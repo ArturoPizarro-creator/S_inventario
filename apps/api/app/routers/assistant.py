@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..db import get_db
 from ..schemas import ChatIn
-from ..services import assistant, llm
+from ..services import assistant, llm, ratelimit
 
 router = APIRouter(prefix="/assistant", tags=["asistente"])
+MSG_LIMIT = "Hiciste muchas consultas seguidas. Espera unos minutos para no agotar el límite gratuito de Gemini."
 
 
 def _friendly(exc: Exception) -> str:
@@ -41,6 +42,7 @@ def chat(data: ChatIn, db: Session = Depends(get_db)):
         raise HTTPException(503, "El asistente no está configurado. Falta ANTHROPIC_API_KEY en el archivo .env.")
     if provider != "claude" and not settings.gemini_api_key:
         raise HTTPException(503, "El asistente no está configurado. Falta GEMINI_API_KEY en el archivo .env.")
+    ratelimit.limit("chat", settings.ai_chat_per_10min, 600, MSG_LIMIT)
     history = [m.model_dump() for m in data.history[-10:]]
     t0 = time.time()
     try:

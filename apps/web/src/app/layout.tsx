@@ -5,6 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Fargoz Racing · Inventario inteligente",
   description: "Control de stock, predicción de demanda y asistente conversacional.",
+  robots: { index: false, follow: false },
   other: { "darkreader-lock": "true" }, // evita que extensiones oscurezcan la página sin avisar
 };
 
